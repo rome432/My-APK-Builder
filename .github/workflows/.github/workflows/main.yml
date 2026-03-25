@@ -1,0 +1,48 @@
+name: Build Android APK
+on:
+  repository_dispatch:
+    types: [build_apk]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Install Cordova
+        run: npm install -g cordova
+
+      - name: Create Project and Add Platform
+        run: |
+          cordova create build_dir com.rome432.snake "${{ github.event.client_payload.app_name }}"
+          cd build_dir
+          cordova platform add android
+          # Принудительно принимаем лицензии
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Prepare Web Files
+        run: |
+          mkdir -p build_dir/www
+          rm -rf build_dir/www/*
+          echo '${{ github.event.client_payload.app_code }}' > build_dir/www/index.html
+
+      - name: Build APK
+        run: |
+          cd build_dir
+          cordova build android --debug --device
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: build_dir/platforms/android/app/build/outputs/apk/debug/app-debug.apk
